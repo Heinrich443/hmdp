@@ -14,15 +14,21 @@ import com.hmdp.entity.User;
 import com.hmdp.mapper.UserMapper;
 import com.hmdp.service.IUserService;
 import com.hmdp.utils.RegexUtils;
+import com.hmdp.utils.UserHolder;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.connection.BitFieldSubCommands;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 
 import javax.annotation.Resource;
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
+import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
@@ -87,6 +93,79 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
 
         // 6.返回 token
         return Result.ok(token);
+    }
+
+    @Override
+    public Result sign() {
+        // 1.获取当前用户
+        Long userId = UserHolder.getUser().getId();
+        // 2.获取当前日期
+        LocalDate now = LocalDate.now();
+        int dayOfMonth = now.getDayOfMonth();
+        String date = now.format(DateTimeFormatter.ofPattern(":yyyyMM"));
+        // 3.生成key
+        String key = "sign:" + userId.toString() + date;
+        // 4.签到
+        stringRedisTemplate.opsForValue().setBit(key, dayOfMonth - 1, true);
+        Boolean bit = stringRedisTemplate.opsForValue().getBit(key, dayOfMonth - 1);
+        log.debug("签到信息如下：{}", bit);
+        return Result.ok();
+    }
+
+    @Override
+    public Result signCount() {
+        // 1.获取当前用户
+        Long userId = UserHolder.getUser().getId();
+        // 2.获取当前日期
+        LocalDate now = LocalDate.now();
+        int dayOfMonth = now.getDayOfMonth();
+        String date = now.format(DateTimeFormatter.ofPattern(":yyyyMM"));
+        // 3.生成key
+        String key = "sign:" + userId.toString() + date;
+        // 4.查询连续签到天数
+        // Boolean bit = stringRedisTemplate.opsForValue().getBit(key, dayOfMonth - 1);
+        // log.debug("签到信息如下：{}", bit);
+
+        List<Long> results = stringRedisTemplate.opsForValue().bitField(key,
+                BitFieldSubCommands.create().get(BitFieldSubCommands.BitFieldType.unsigned(dayOfMonth)).valueAt(0));
+
+        if (results == null || results.isEmpty()) {
+            return Result.ok(0);
+        }
+
+        Long result = results.get(0);
+        if (result == null || result == 0) {
+            return Result.ok(0);
+        }
+
+        int count = 0;
+        while (result != 0) {
+            if ((result & 1) == 1) {
+                count ++;
+            } else {
+                // return Result.ok(count);
+                break;
+            }
+
+            result >>>= 1;
+        }
+
+        // 5.返回
+        return Result.ok(count);
+        // return Result.ok(0);
+    }
+
+    @Override
+    public Result logout(HttpServletRequest request) {
+        UserDTO user = UserHolder.getUser();
+        if (user != null) {
+            UserHolder.removeUser();
+        }
+
+        String key = "login:token:" + request.getHeader("authorization");
+        stringRedisTemplate.delete(key);
+
+        return Result.ok();
     }
 
     private User createByPhone(String phone) {

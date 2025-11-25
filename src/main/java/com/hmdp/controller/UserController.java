@@ -12,6 +12,7 @@ import com.hmdp.utils.UserHolder;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
+import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpSession;
 
 @RestController
@@ -64,5 +65,20 @@ public class UserController {
         userInfo.setUpdateTime(null);
 
         return Result.ok(userInfo);
+    }
+
+    @PostMapping("/sign")
+    public Result sign() {
+        return userService.sign();
+    }
+
+    @PostMapping("/sign/count")
+    public Result signCount() {
+        return userService.signCount();
+    }
+
+    @PostMapping("/logout")
+    public Result logout(HttpServletRequest request) {
+        return userService.logout(request);
     }
 }
