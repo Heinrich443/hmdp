@@ -30,10 +30,17 @@ public class CacheClientTest {
     }
 
     @Test
-    public void testSetWithLogicalExpire() {
+    public void testSetWithLogicalExpire1() {
         User user = new User();
         user.setNickName("aaaaa");
         cacheClient.setWithLogicalExpire("test:cache:2", user, 2L, TimeUnit.SECONDS);
+    }
+
+    @Test
+    public void testSetWithLogicalExpire2() {
+        Shop shop = new Shop();
+        shop.setName("aaaaa");
+        cacheClient.setWithLogicalExpire("test:cache:3", shop, 2L, TimeUnit.SECONDS);
     }
 
     @Test
@@ -56,7 +63,7 @@ public class CacheClientTest {
 
     @Test
     public void testQueryWithLogicalExpire2() {
-        User user = cacheClient.queryWithLogicalExpire("test:cache:", 1, User.class, userService::getById, 2L, TimeUnit.MINUTES);
-        System.out.println(user);
+        Shop shop = cacheClient.queryWithLogicalExpire("test:cache:", 3, Shop.class, shopService::getById, 2L, TimeUnit.MINUTES);
+        System.out.println(shop);
     }
 }

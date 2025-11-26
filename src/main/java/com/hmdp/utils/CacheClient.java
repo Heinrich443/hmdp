@@ -1,14 +1,19 @@
 package com.hmdp.utils;
 
+import cn.hutool.core.lang.UUID;
 import cn.hutool.core.util.BooleanUtil;
 import cn.hutool.core.util.StrUtil;
+import cn.hutool.json.JSONObject;
 import cn.hutool.json.JSONUtil;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Component;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -71,6 +76,18 @@ public class CacheClient {
 
     // 线程池
     private static final ExecutorService CACHE_REBUILD_EXECUTOR = Executors.newFixedThreadPool(10);
+    
+    // 锁的标识前缀，使用UUID确保唯一性
+    private static final String ID_PREFIX = UUID.randomUUID().toString(true) + "-";
+    
+    // 释放锁的Lua脚本
+    private static final DefaultRedisScript<Long> UNLOCK_SCRIPT;
+    
+    static {
+        UNLOCK_SCRIPT = new DefaultRedisScript<>();
+        UNLOCK_SCRIPT.setLocation(new ClassPathResource("unlock.lua"));
+        UNLOCK_SCRIPT.setResultType(Long.class);
+    }
 
 
     // 方法4：根据指定的key查询缓存，并反序列化为指定类型，需要利用逻辑过期解决缓存击穿问题
@@ -82,19 +99,22 @@ public class CacheClient {
         // 判断是否命中
         if (StrUtil.isBlank(json)) {
             // 未命中，返回空
+            // return queryWithPassThrough(prefix, id, type, dbFallBack, time, unit);
             return null;
         }
 
         // 命中，判断缓存是否过期
         RedisData result = JSONUtil.toBean(json, RedisData.class);
-        R r = JSONUtil.toBean(JSONUtil.toJsonStr(result.getData()), type);
+        // R r = JSONUtil.toBean(JSONUtil.toJsonStr(result.getData()), type);
+        R r = JSONUtil.toBean((JSONObject) result.getData(), type);
         if (result.getExpireTime().isAfter(LocalDateTime.now())) {
             // 未过期，返回商铺信息
             return r;
         }
         // 过期，尝试获取互斥锁
         String lockKey = "cache:lock:" + id;
-        Boolean success = tryLock(lockKey);
+        String lockValue = ID_PREFIX + Thread.currentThread().getId();
+        Boolean success = tryLock(lockKey, lockValue);
         // 判断是否获得锁
         if (success) {
             // 是，开启独立线程
@@ -104,10 +124,10 @@ public class CacheClient {
                     R apply = dbFallBack.apply(id);
                     setWithLogicalExpire(key, apply, time, unit);
                 } catch (Exception e) {
-                    throw new RuntimeException(e);
+                    log.error("缓存重建失败", e);
                 } finally {
-                    // 释放互斥锁
-                    unlock(lockKey);
+                    // 释放互斥锁，使用Lua脚本确保原子性
+                    unlock(lockKey, lockValue);
                     log.debug("释放互斥锁成功");
                 }
             });
@@ -117,12 +137,25 @@ public class CacheClient {
         return r;
     }
 
-    private void unlock(String key) {
-        stringRedisTemplate.delete(key);
+    /**
+     * 释放锁，使用Lua脚本确保原子性，只有锁的持有者才能释放锁
+     * @param key 锁的key
+     * @param lockValue 锁的值（线程标识）
+     */
+    private void unlock(String key, String lockValue) {
+        stringRedisTemplate.execute(UNLOCK_SCRIPT, 
+            Collections.singletonList(key), 
+            lockValue);
     }
 
-    public Boolean tryLock(String key) {
-        Boolean flag = stringRedisTemplate.opsForValue().setIfAbsent(key, "1", 10L, TimeUnit.MINUTES);
+    /**
+     * 尝试获取锁
+     * @param key 锁的key
+     * @param lockValue 锁的值（线程标识）
+     * @return 是否获取成功
+     */
+    public Boolean tryLock(String key, String lockValue) {
+        Boolean flag = stringRedisTemplate.opsForValue().setIfAbsent(key, lockValue, 10L, TimeUnit.SECONDS);
         return BooleanUtil.isTrue(flag);
     }
 }
