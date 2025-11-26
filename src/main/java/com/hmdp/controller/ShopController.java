@@ -3,7 +3,6 @@ package com.hmdp.controller;
 import com.hmdp.dto.Result;
 import com.hmdp.entity.Shop;
 import com.hmdp.service.IShopService;
-import com.hmdp.utils.CacheClient;
 import org.springframework.web.bind.annotation.*;
 
 import javax.annotation.Resource;
