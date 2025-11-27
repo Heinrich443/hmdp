@@ -21,7 +21,7 @@ public class UploadController {
         try {
             String originalFilename = image.getOriginalFilename();
             String fileName = createFileName(originalFilename);
-            image.transferTo(new File(fileName));
+            image.transferTo(new File("/opt/homebrew/var/www/hmdp/imgs", fileName));
             log.debug("文件上传成功，{}", fileName);
             return Result.ok(fileName);
         } catch (IOException e) {
