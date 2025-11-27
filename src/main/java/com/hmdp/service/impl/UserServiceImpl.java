@@ -89,7 +89,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         Map<String, Object> map = BeanUtil.beanToMap(userDTO, new HashMap<>(),
                 CopyOptions.create().setFieldValueEditor((name, value) -> value.toString()));
         stringRedisTemplate.opsForHash().putAll(token, map);
-        stringRedisTemplate.expire(key, 30L, TimeUnit.MINUTES);
+        stringRedisTemplate.expire(token, 30L, TimeUnit.MINUTES);
 
         // 6.返回 token
         return Result.ok(token);
