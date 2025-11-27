@@ -10,6 +10,7 @@ import org.springframework.web.servlet.HandlerInterceptor;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 @RequiredArgsConstructor
 public class RefreshTokenInterceptor implements HandlerInterceptor {
@@ -37,6 +38,8 @@ public class RefreshTokenInterceptor implements HandlerInterceptor {
         // 4.存在，将用户信息存入ThreadLocal
         UserDTO userDTO = BeanUtil.fillBeanWithMap(map, new UserDTO(), false);
         UserHolder.saveUser(userDTO);
+
+        stringRedisTemplate.expire(key, 36000L, TimeUnit.MINUTES);
 
         // 5.放行
         return true;
