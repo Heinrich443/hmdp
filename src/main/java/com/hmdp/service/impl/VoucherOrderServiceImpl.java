@@ -8,7 +8,9 @@ import com.hmdp.service.ISeckillVoucherService;
 import com.hmdp.service.IVoucherOrderService;
 import com.hmdp.utils.RedisIdWorker;
 import com.hmdp.utils.UserHolder;
+import lombok.extern.slf4j.Slf4j;
 import org.redisson.api.RedissonClient;
+import org.springframework.amqp.rabbit.core.RabbitTemplate;
 import org.springframework.aop.framework.AopContext;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -25,6 +27,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
+@Slf4j
 @Service
 public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, VoucherOrder> implements IVoucherOrderService {
 
@@ -34,15 +37,18 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     @Resource
     private RedisIdWorker idWorker;
 
-    @Resource
-    private RedissonClient redissonClient;
+    // @Resource
+    // private RedissonClient redissonClient;
 
     @Resource
     private ISeckillVoucherService seckillVoucherService;
 
-    private BlockingQueue<VoucherOrder> orderTasks = new ArrayBlockingQueue<>(1024 * 1024);
+    @Resource
+    private RabbitTemplate rabbitTemplate;
 
-    private IVoucherOrderService proxy;
+    // private BlockingQueue<VoucherOrder> orderTasks = new ArrayBlockingQueue<>(1024 * 1024);
+
+    // private IVoucherOrderService proxy;
 
     private static final DefaultRedisScript<Long> SECKILL_SCRIPT;
     static {
@@ -52,15 +58,15 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
     }
 
     // 线程池
-    private static final ExecutorService SECKILL_ORDER_EXECUTOR = Executors.newSingleThreadExecutor();
+    /*private static final ExecutorService SECKILL_ORDER_EXECUTOR = Executors.newSingleThreadExecutor();
 
     // 在当前类初始化完毕后执行以下方法
     @PostConstruct
     private void init() {
         SECKILL_ORDER_EXECUTOR.submit(new VoucherOrderHandler());
-    }
+    }*/
 
-    private class VoucherOrderHandler implements Runnable {
+    /*private class VoucherOrderHandler implements Runnable {
         @Override
         public void run() {
             while (true) {
@@ -72,9 +78,9 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
                 }
             }
         }
-    }
+    }*/
 
-    private void handleVoucherOrder(VoucherOrder voucherOrder) {
+    /*private void handleVoucherOrder(VoucherOrder voucherOrder) {
         // 创建 key
         Long userId = voucherOrder.getUserId();
         String key = "lock:order:" + userId;
@@ -87,7 +93,7 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         }
 
         proxy.createVoucherOrder(voucherOrder);
-    }
+    }*/
 
     @Override
     public Result seckillVoucher(Long voucherId) {
@@ -107,11 +113,14 @@ public class VoucherOrderServiceImpl extends ServiceImpl<VoucherOrderMapper, Vou
         voucherOrder.setVoucherId(voucherId);
         voucherOrder.setId(nextId);
         voucherOrder.setUserId(userId);
-        // TODO 将订单放入消息队列，异步处理订单
         // 将订单放入消息队列，异步处理订单
-        orderTasks.add(voucherOrder);
+        String queueName = "hmdp.order";
+        rabbitTemplate.convertAndSend(queueName, voucherOrder);
+        log.info("订单消息已发送到队列，订单id: {}, 用户id: {}, 优惠券id: {}", nextId, userId, voucherId);
+        // 将订单放入消息队列，异步处理订单
+        // orderTasks.add(voucherOrder);
         // 保存代理对象（成员变量）
-        proxy = (IVoucherOrderService) AopContext.currentProxy();
+        // proxy = (IVoucherOrderService) AopContext.currentProxy();
         // 返回订单id
         return Result.ok(voucherId);
     }
