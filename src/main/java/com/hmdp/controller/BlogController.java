@@ -11,6 +11,8 @@ import javax.annotation.Resource;
 import java.util.Collections;
 import java.util.List;
 
+import static com.hmdp.utils.SystemConstants.MAX_PAGE_SIZE;
+
 @RestController
 @RequestMapping("/blog")
 public class BlogController {
@@ -46,7 +48,7 @@ public class BlogController {
     @GetMapping("/of/me")
     public Result queryMyBlog(@RequestParam(value = "current", defaultValue = "1") Integer current) {
         Page<Blog> page = blogService.query().eq("user_id", UserHolder.getUser().getId())
-                .page(new Page<>(current, 10));
+                .page(new Page<>(current, MAX_PAGE_SIZE));
         return Result.ok(page.getRecords());
     }
 
@@ -54,7 +56,7 @@ public class BlogController {
     public Result queryBlogByUserId(
             @RequestParam("id") Long id,
             @RequestParam(value = "current", defaultValue = "1") Integer current) {
-        Page<Blog> page = blogService.query().eq("user_id", id).page(new Page<>(current, 10));
+        Page<Blog> page = blogService.query().eq("user_id", id).page(new Page<>(current, MAX_PAGE_SIZE));
         return Result.ok(page.getRecords());
     }
 

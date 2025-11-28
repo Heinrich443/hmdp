@@ -34,6 +34,9 @@ import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiFunction;
 
+import static com.hmdp.utils.RedisConstants.*;
+import static com.hmdp.utils.SystemConstants.USER_NICK_NAME_PREFIX;
+
 @Slf4j
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IUserService {
@@ -52,8 +55,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         String code = RandomUtil.randomNumbers(6);
 
         // 3.存入Redis，TTL 2分钟
-        String key = "login:code:" + phone;
-        stringRedisTemplate.opsForValue().set(key, code, 2L, TimeUnit.MINUTES);
+        String key = LOGIN_CODE_KEY + phone;
+        stringRedisTemplate.opsForValue().set(key, code, LOGIN_CODE_TTL, TimeUnit.MINUTES);
 
         log.debug("发送短信验证码成功，验证码：{}", code);
 
@@ -69,7 +72,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         }
 
         // 2.验证码校验
-        String key = "login:code:" + phone;
+        String key = LOGIN_CODE_KEY + phone;
         String cacheCode = stringRedisTemplate.opsForValue().get(key);
         String code = loginFormDTO.getCode();
         if (cacheCode == null || !cacheCode.equals(code)) {
@@ -83,13 +86,13 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         }
 
         // 4.生成 UUID token
-        String token = "login:token:" + UUID.randomUUID().toString();
+        String token = LOGIN_USER_KEY + UUID.randomUUID().toString();
         // 5.用户信息存入 Redis Hash，TTL 30 分钟
         UserDTO userDTO = BeanUtil.copyProperties(user, UserDTO.class);
         Map<String, Object> map = BeanUtil.beanToMap(userDTO, new HashMap<>(),
                 CopyOptions.create().setFieldValueEditor((name, value) -> value.toString()));
         stringRedisTemplate.opsForHash().putAll(token, map);
-        stringRedisTemplate.expire(token, 30L, TimeUnit.MINUTES);
+        stringRedisTemplate.expire(token, LOGIN_USER_TTL, TimeUnit.MINUTES);
 
         // 6.返回 token
         return Result.ok(token);
@@ -104,7 +107,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         int dayOfMonth = now.getDayOfMonth();
         String date = now.format(DateTimeFormatter.ofPattern(":yyyyMM"));
         // 3.生成key
-        String key = "sign:" + userId.toString() + date;
+        String key = USER_SIGN_KEY + userId.toString() + date;
         // 4.签到
         stringRedisTemplate.opsForValue().setBit(key, dayOfMonth - 1, true);
         Boolean bit = stringRedisTemplate.opsForValue().getBit(key, dayOfMonth - 1);
@@ -121,7 +124,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
         int dayOfMonth = now.getDayOfMonth();
         String date = now.format(DateTimeFormatter.ofPattern(":yyyyMM"));
         // 3.生成key
-        String key = "sign:" + userId.toString() + date;
+        String key = USER_SIGN_KEY + userId.toString() + date;
         // 4.查询连续签到天数
         // Boolean bit = stringRedisTemplate.opsForValue().getBit(key, dayOfMonth - 1);
         // log.debug("签到信息如下：{}", bit);
@@ -162,7 +165,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
             UserHolder.removeUser();
         }
 
-        String key = "login:token:" + request.getHeader("authorization");
+        String key = LOGIN_USER_KEY + request.getHeader("authorization");
         stringRedisTemplate.delete(key);
 
         return Result.ok();
@@ -171,7 +174,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements IU
     private User createByPhone(String phone) {
         User user = new User();
         user.setPhone(phone);
-        user.setNickName("user_" + RandomUtil.randomString(10));
+        user.setNickName(USER_NICK_NAME_PREFIX + RandomUtil.randomString(10));
         save(user);
         return user;
     }

@@ -21,6 +21,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static com.hmdp.utils.RedisConstants.FOLLOW_KEY;
+
 @Service
 public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> implements IFollowService {
 
@@ -35,7 +37,7 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
         // 获取登录用户
         Long userId = UserHolder.getUser().getId();
         // 判断关注or取关
-        String key = "follows:" + userId;
+        String key = FOLLOW_KEY + userId;
         if (!isFollow) {
             // 关注，新增数据
             Integer count = query().eq("user_id", userId).eq("follow_user_id", id).count();
@@ -67,7 +69,7 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
     public Result isFollow(Long id) {
         // 获取登录用户
         Long userId = UserHolder.getUser().getId();
-        String key = "follows:" + userId;
+        String key = FOLLOW_KEY + userId;
         // 查询是否关注
         Boolean flag = stringRedisTemplate.opsForSet().isMember(key, id.toString());
         // 返回
@@ -79,8 +81,8 @@ public class FollowServiceImpl extends ServiceImpl<FollowMapper, Follow> impleme
         // 获取当前用户
         Long userId = UserHolder.getUser().getId();
         // 求交集
-        String userKey = "follows:" + userId;
-        String key = "follows:" + id;
+        String userKey = FOLLOW_KEY + userId;
+        String key = FOLLOW_KEY + id;
         Set<String> intersect = stringRedisTemplate.opsForSet().intersect(userKey, key);
         if (intersect == null || intersect.isEmpty()) {
             // 无交集，返回空集合

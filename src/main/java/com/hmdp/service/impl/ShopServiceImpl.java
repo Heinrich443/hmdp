@@ -15,12 +15,14 @@ import org.springframework.data.redis.connection.RedisGeoCommands;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.domain.geo.GeoReference;
 import org.springframework.stereotype.Service;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestParam;
 
 import javax.annotation.Resource;
 import java.util.*;
 import java.util.concurrent.TimeUnit;
+
+import static com.hmdp.utils.RedisConstants.*;
+import static com.hmdp.utils.SystemConstants.DEFAULT_PAGE_SIZE;
+import static com.hmdp.utils.SystemConstants.MAX_PAGE_SIZE;
 
 @Service
 public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IShopService {
@@ -33,7 +35,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
     @Override
     public Result queryById(Long id) {
-        Shop shop = cacheClient.queryWithLogicalExpire("cache:shop:", id, Shop.class, this::getById, 30L, TimeUnit.MINUTES);
+        Shop shop = cacheClient.queryWithLogicalExpire(CACHE_SHOP_KEY, id, Shop.class, this::getById, CACHE_SHOP_TTL, TimeUnit.MINUTES);
 
         if (shop == null) {
             return Result.fail("店铺不存在！");
@@ -50,7 +52,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
 
         updateById(shop);
         Long shopId = shop.getId();
-        String key = "cache:shop:" + shopId;
+        String key = CACHE_SHOP_KEY + shopId;
         stringRedisTemplate.delete(key);
 
         return Result.ok();
@@ -60,7 +62,7 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
     public Result getByName(String name, Integer current) {
         Page<Shop> page = query()
                 .like(StrUtil.isNotBlank(name), "name", name)
-                .page(new Page<>(current, 10));
+                .page(new Page<>(current, MAX_PAGE_SIZE));
         return Result.ok(page.getRecords());
     }
 
@@ -69,17 +71,17 @@ public class ShopServiceImpl extends ServiceImpl<ShopMapper, Shop> implements IS
         // 1.判断是否需要根据坐标查询
         if (x == null || y == null) {
             // 不需要坐标查询，按数据库查
-            Page<Shop> page = query().eq("type_id", typeId).page(new Page<>(current, 10));
+            Page<Shop> page = query().eq("type_id", typeId).page(new Page<>(current, DEFAULT_PAGE_SIZE));
             // 返回
             return Result.ok(page.getRecords());
         }
 
         // 2.计算分页参数 from end
-        int from = (current - 1) * 10;
-        int end = current * 10;
+        int from = (current - 1) * DEFAULT_BATCH_SIZE;
+        int end = current * DEFAULT_BATCH_SIZE;
 
         // 3.查询redis，根据距离进行排序、分页。结果：shopId, distance
-        String key = "shop:geo:" + typeId;
+        String key = SHOP_GEO_KEY + typeId;
         GeoResults<RedisGeoCommands.GeoLocation<String>> results = stringRedisTemplate.opsForGeo().search(key, GeoReference.fromCoordinate(x, y),
                 new Distance(50000), RedisGeoCommands.GeoSearchCommandArgs.newGeoSearchArgs().includeDistance().limit(end));
 

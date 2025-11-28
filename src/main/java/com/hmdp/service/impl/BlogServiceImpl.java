@@ -28,6 +28,10 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static com.hmdp.utils.RedisConstants.BLOG_LIKED_KEY;
+import static com.hmdp.utils.RedisConstants.FEED_KEY;
+import static com.hmdp.utils.SystemConstants.MAX_PAGE_SIZE;
+
 @Service
 public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IBlogService {
 
@@ -71,7 +75,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         // 获取当前登录用户
         Long userId = UserHolder.getUser().getId();
         // 判断是否点赞
-        String key = "blog:liked:" + id;
+        String key = BLOG_LIKED_KEY + id;
         Double score = stringRedisTemplate.opsForZSet().score(key, userId.toString());
         if (score == null) {
             // 未点赞，点赞
@@ -97,7 +101,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
     @Override
     public Result queryHotBlog(Integer current) {
         // 查询数据库，按 liked 降序排列，实现分页
-        Page<Blog> page = query().orderByDesc("liked").page(new Page<>(current, 10));
+        Page<Blog> page = query().orderByDesc("liked").page(new Page<>(current, MAX_PAGE_SIZE));
         List<Blog> blogs = page.getRecords();
         blogs.forEach(blog -> {
             queryUser(blog);
@@ -122,7 +126,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
     @Override
     public Result queryBlogLikes(Long id) {
         // "blog:liked:" + id
-        String key = "blog:liked:" + id;
+        String key = BLOG_LIKED_KEY + id;
         Set<String> tuples = stringRedisTemplate.opsForZSet().range(key, 0, 4);
         if (tuples == null || tuples.isEmpty()) {
             return Result.ok(Collections.emptyList());
@@ -140,7 +144,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
         // 查询当前登录用户
         Long userId = UserHolder.getUser().getId();
         // key "feed:" + userId
-        String key = "feed:" + userId;
+        String key = FEED_KEY + userId;
         // 查询blogs ZREVRANGE key min max limit offset count
         Set<ZSetOperations.TypedTuple<String>> tuples = stringRedisTemplate.opsForZSet().
                 reverseRangeByScoreWithScores(key, 0, max, offset, 3);
@@ -193,7 +197,7 @@ public class BlogServiceImpl extends ServiceImpl<BlogMapper, Blog> implements IB
             return;
         }
         // 查询是否点赞
-        String key = "blog:liked:" + blog.getId();
+        String key = BLOG_LIKED_KEY + blog.getId();
         Double score = stringRedisTemplate.opsForZSet().score(key, blog.getUserId().toString());
         blog.setIsLike(score != null);
     }

@@ -11,6 +11,8 @@ import java.io.File;
 import java.io.IOException;
 import java.util.UUID;
 
+import static com.hmdp.utils.SystemConstants.IMAGE_UPLOAD_DIR;
+
 @Slf4j
 @RestController
 @RequestMapping("/upload/blog")
@@ -21,7 +23,7 @@ public class UploadController {
         try {
             String originalFilename = image.getOriginalFilename();
             String fileName = createFileName(originalFilename);
-            image.transferTo(new File("/opt/homebrew/var/www/hmdp/imgs", fileName));
+            image.transferTo(new File(IMAGE_UPLOAD_DIR, fileName));
             log.debug("文件上传成功，{}", fileName);
             return Result.ok(fileName);
         } catch (IOException e) {
@@ -52,7 +54,7 @@ public class UploadController {
         int d1 = hash & 0xF;
         int d2 = (hash >> 4) & 0xF;
         // 判断目录是否存在
-        File dir = new File("/opt/homebrew/var/www/hmdp/imgs", StrUtil.format("/blogs/{}/{}", d1, d2));
+        File dir = new File(IMAGE_UPLOAD_DIR, StrUtil.format("/blogs/{}/{}", d1, d2));
         if (!dir.exists()) {
             dir.mkdirs();
         }

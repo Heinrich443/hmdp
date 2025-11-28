@@ -12,6 +12,9 @@ import javax.servlet.http.HttpServletResponse;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static com.hmdp.utils.RedisConstants.LOGIN_USER_KEY;
+import static com.hmdp.utils.RedisConstants.LOGIN_USER_TTL;
+
 @RequiredArgsConstructor
 public class RefreshTokenInterceptor implements HandlerInterceptor {
 
@@ -28,7 +31,7 @@ public class RefreshTokenInterceptor implements HandlerInterceptor {
         }
 
         // 3.判断用户信息是否存在
-        String key = "login:token:" + token;
+        String key = LOGIN_USER_KEY + token;
         Map<Object, Object> map = stringRedisTemplate.opsForHash().entries(key);
         if (map.isEmpty()) {
             // 不存在，放行
@@ -39,7 +42,7 @@ public class RefreshTokenInterceptor implements HandlerInterceptor {
         UserDTO userDTO = BeanUtil.fillBeanWithMap(map, new UserDTO(), false);
         UserHolder.saveUser(userDTO);
 
-        stringRedisTemplate.expire(key, 36000L, TimeUnit.MINUTES);
+        stringRedisTemplate.expire(key, LOGIN_USER_TTL, TimeUnit.MINUTES);
 
         // 5.放行
         return true;

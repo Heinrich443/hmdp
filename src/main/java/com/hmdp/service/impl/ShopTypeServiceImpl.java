@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Set;
 
+import static com.hmdp.utils.RedisConstants.CACHE_SHOP_TYPE_KEY;
+
 @Service
 public class ShopTypeServiceImpl extends ServiceImpl<ShopTypeMapper, ShopType> implements IShopTypeService {
 
@@ -24,7 +26,7 @@ public class ShopTypeServiceImpl extends ServiceImpl<ShopTypeMapper, ShopType> i
     @Override
     public Result getType() {
         // 从缓存里查数据
-        String cacheKey = "cache:type:" + "*";
+        String cacheKey = CACHE_SHOP_TYPE_KEY + "*";
         Set<String> keys = stringRedisTemplate.keys(cacheKey);
         if (keys != null && !keys.isEmpty()) {
             List<String> list = stringRedisTemplate.opsForValue().multiGet(keys);
@@ -47,7 +49,7 @@ public class ShopTypeServiceImpl extends ServiceImpl<ShopTypeMapper, ShopType> i
 
         for (ShopType type: types) {
             // 数据库中存在数据，写入缓存，返回
-            String key = "cache:type:" + type.getId();
+            String key = CACHE_SHOP_TYPE_KEY + type.getId();
             stringRedisTemplate.opsForValue().set(key, JSONUtil.toJsonStr(type));
         }
 
